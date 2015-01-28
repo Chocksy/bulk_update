@@ -49,10 +49,10 @@ You have now the following entries in your database:
 +----+-------+--------+-----------+------------+
 </pre>
 
-If you now do a bulk update:
+If you now do a bulk update with callbacks:
 
     values  = [['name1', 'value1.1'], ['name2', 'value2'], ['name4', 'value4.1']]
-    Model.bulk_update columns, values, key: 'name'
+    Model.bulk_update_callback columns, values, key: 'name'
 
 You have now the following entries in your database:
 <pre>
@@ -64,6 +64,11 @@ You have now the following entries in your database:
 |  3 | name4 | value4.1 |        t2 |         t2 |
 +----+-------+----------+-----------+------------+
 </pre>
+
+If you want to do a bulk update without calling any callbacks and without doing checks for inserts or removals. (Super fast!)
+
+    values = [['name1', 'value1.1'], ['name2', 'value2'], ['name4', 'value4.1']]
+    Model.bulk_update columns, values, key: 'name'
 
 ## How it works
 

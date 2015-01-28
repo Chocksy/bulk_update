@@ -9,9 +9,9 @@ module BulkUpdate
           ActiveRecord::Base.connection.execute "CREATE TABLE `#{args[:to]}` AS SELECT * FROM `#{table_name}` LIMIT 1"
           ActiveRecord::Base.connection.execute "DELETE FROM `#{args[:to]}`"
         when 'postgresql'
-          ActiveRecord::Base.connection.execute "CREATE TABLE \"#{args[:to]}\" (LIKE \"#{table_name}\" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES);"
+          ActiveRecord::Base.connection.execute "CREATE TEMPORARY TABLE \"#{args[:to]}\" (LIKE \"#{table_name}\" INCLUDING DEFAULTS INCLUDING CONSTRAINTS INCLUDING INDEXES);"
         else
-          ActiveRecord::Base.connection.execute "CREATE TABLE `#{args[:to]}` LIKE `#{table_name}`"
+          ActiveRecord::Base.connection.execute "CREATE TEMPORARY TABLE `#{args[:to]}` LIKE `#{table_name}`"
         end
       end
     end
@@ -80,11 +80,40 @@ module BulkUpdate
       end
     end
 
+    #
+    # Creates a temp table and insert the new values in that temp table. Then we use a single sql command to
+    # update the current table with the temp_table records.
+    def bulk_update(columns, values, args = {})
+      temp_table = "#{table_name}_temp_table_#{$$}"
+      key        = (args[:key] || 'id').to_s
+      raise "columns array is empty. not allowed" if columns.blank?
+      raise "#{key} is not present in columns argument" unless columns.map(&:to_s).include?(key)
+
+      # Clone temp-table and load it
+      clone_table to: temp_table
+      bulk_insert columns, values, into: temp_table
+
+      # Create an array that will hold the strings joined later into an sql string
+      update_sql = []
+      columns.each do |column|
+        col = column.to_s
+        update_sql << "#{col} = #{temp_table}.#{col}" unless col==key
+      end
+      # Join the resulting strings
+      update_sql = update_sql.join(', ')
+
+      raw_sql = "UPDATE #{self.table_name} SET #{update_sql} FROM #{temp_table} WHERE #{temp_table}.#{key} = #{self.table_name}.#{key}"
+      ActiveRecord::Base.connection.execute raw_sql
+    ensure
+      # Drop temp table
+      ActiveRecord::Base.connection.execute "DROP TABLE IF EXISTS #{temp_table}"
+    end
+
 
     #
     # Create, update and delete Records according to a set of new values through ActiveRecord but optimized for performance by
     # finding all diferences by SQL.
-    def bulk_update(columns, values, args = {})
+    def bulk_update_callback(columns, values, args = {})
       temp_table     = "#{table_name}_temp_table_#{$$}"
       key            = args[:key] || args[:keys] || 'id'
       condition      = args[:condition]
