@@ -24,7 +24,7 @@ module BulkUpdate
         'NULL'
       else
         if element.to_s[0] == '(' || element.to_s.downcase == 'true' || element.to_s.downcase == 'false'
-          element.to_s
+          ActiveRecord::Base::sanitize(element.to_s)
         else
           ActiveRecord::Base::sanitize(element)
         end
